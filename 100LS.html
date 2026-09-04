@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多音檔剪輯、獨立間隔與合成試聽工具</title>
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: #f1f5f9;
+      color: #334155;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 30px 15px;
+    }
+    .container {
+      background: #ffffff;
+      width: 100%;
+      max-width: 920px;
+      padding: 35px;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* 上傳區域 */
+    .upload-section {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .upload-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+      transition: all 0.2s ease;
+    }
+    .upload-btn:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    }
+    input[type="file"] { display: none; }
+
+    /* 音檔清單區 */
+    .file-list-container {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .list-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      cursor: pointer;
+      transition: all 0.2s;
+      gap: 12px;
+    }
+    .file-item:hover { border-color: #93c5fd; }
+    .file-item.active { border-color: #2563eb; background: #eff6ff; }
+    .file-main-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #1e293b;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .drag-handle { cursor: grab; color: #94a3b8; font-size: 16px; }
+    
+    .silence-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .silence-control input {
+      width: 55px;
+      padding: 3px 6px;
+      font-size: 13px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      text-align: center;
+      outline: none;
+      background: #ffffff;
+    }
+    .silence-control input:focus { border-color: #2563eb; }
+
+    .btn-remove-file {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .btn-remove-file:hover { background: #fee2e2; }
+
+    /* 波形卡片 */
+    .waveform-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .waveform-wrapper {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 15px 12px 35px 12px;
+      position: relative;
+      border: 1px solid #cbd5e1;
+    }
+    .waveform-container {
+      width: 100%;
+      height: 128px;
+      position: relative;
+    }
+
+    .duration-center-label {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: #475569;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-weight: 600;
+      background: #f1f5f9;
+      padding: 2px 10px;
+      border-radius: 20px;
+      border: 1px solid #cbd5e1;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* 手把視覺樣式 */
+    div[data-resize="left"],
+    div[data-resize="right"],
+    .wavesurfer-region [data-resize="left"],
+    .wavesurfer-region [data-resize="right"] {
+      background: linear-gradient(180deg, #ff6b6b 0%, #ff8e53 100%) !important;
+      width: 14px !important;
+      border-radius: 4px !important;
+      position: absolute !important;
+      cursor: col-resize !important;
+      opacity: 1 !important;
+      z-index: 20 !important;
+      box-shadow: 0 2px 6px rgba(255, 107, 107, 0.4) !important;
+      border: 1px solid #ffffff !important;
+      overflow: visible !important;
+    }
+
+    .handle-time-tag {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 6px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0284c7;
+      background: #ffffff;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid #38bdf8;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    .time-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 25px;
+      padding: 0 4px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    /* 控制按鈕區 */
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+    }
+    .btn-group-left { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #ffffff;
+      color: #334155;
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-play { border-color: #86efac; color: #15803d; background: #f0fdf4; }
+    .btn-cut { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
+    .btn-keep { border-color: #7dd3fc; color: #0369a1; background: #f0f9ff; }
+    .btn-undo { border-color: #fde047; color: #a16207; background: #fefce8; }
+
+    /* 重複拼接與預覽面板 */
+    .repeat-panel {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+    .panel-title {
+      font-weight: 600;
+      font-size: 15px;
+      color: #1e293b;
+      margin-bottom: 16px;
+    }
+    .setting-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-group label {
+      font-size: 13px;
+      color: #475569;
+      font-weight: 600;
+    }
+    .input-group input {
+      padding: 10px 14px;
+      font-size: 14px;
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      outline: none;
+    }
+    .input-group input:focus { border-color: #6366f1; }
+    
+    .action-btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .btn-generate {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      border: none;
+      color: #ffffff;
+      padding: 13px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      flex: 2;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-generate:hover:not(:disabled) {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, #4338ca, #4f46e5);
+    }
+
+    /* 合成預覽區 */
+    .preview-section {
+      display: none;
+      margin-top: 20px;
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #cbd5e1;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .preview-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preview-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn-preview-play {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-preview-play:hover { background: #059669; }
+    .btn-download {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-download:hover { background: #1d4ed8; }
+
+    .status-text {
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>多音檔剪輯與合成試聽工具</h1>
+
+  <div class="upload-section">
+    <label for="file-input" class="upload-btn">📁 新增 / 上傳多個音檔</label>
+    <input type="file" id="file-input" accept="audio/*" multiple>
+  </div>
+
+  <div class="file-list-container">
+    <div class="list-title">
+      <span>音檔播放順序與個人停頓秒數（點擊可預覽剪輯，拖曳 ☰ 排序）：</span>
+      <span id="file-count">共 0 個音檔</span>
+    </div>
+    <ul id="file-list" class="file-list"></ul>
+  </div>
+
+  <div class="waveform-card">
+    <div class="waveform-wrapper">
+      <div id="waveform" class="waveform-container">
+        <div id="center-duration" class="duration-center-label">00:00:00.0</div>
+      </div>
+      <div class="time-bar">
+        <span id="start-time">00:00:00.0</span>
+        <span id="end-time">00:00:00.0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="btn-group-left">
+      <button id="btn-play" class="btn btn-play" disabled>▶ 試聽當前選區</button>
+      <button id="btn-cut" class="btn btn-cut" disabled>✂ 剪除選區</button>
+      <button id="btn-keep" class="btn btn-keep" disabled>🔍 僅留選區</button>
+      <button id="btn-undo" class="btn btn-undo" disabled>↩ 復原上步</button>
+    </div>
+  </div>
+
+  <div class="repeat-panel">
+    <div class="panel-title">🔁 拼接與合成設定</div>
+    <div class="setting-grid">
+      <div class="input-group">
+        <label for="repeat-count">整體重複次數：</label>
+        <input type="number" id="repeat-count" value="10" min="1" max="1000">
+      </div>
+      <div class="input-group">
+        <label for="silence-loop">每組（全套）循環之間靜音（秒）：</label>
+        <input type="number" id="silence-loop" value="2" min="0" max="60" step="0.5">
+      </div>
+    </div>
+    <div class="action-btn-group">
+      <button id="btn-generate-repeat" class="btn btn-generate" disabled>⚙ 開始合成音檔</button>
+    </div>
+
+    <div id="preview-section" class="preview-section">
+      <div class="preview-title">✅ 音檔合成完成！請先試聽確認：</div>
+      <div class="preview-controls">
+        <button id="btn-preview-play" class="btn-preview-play">▶ 試聽合成結果</button>
+        <button id="btn-download" class="btn-download">💾 下載合成音檔</button>
+        <audio id="preview-audio-player" style="display:none;"></audio>
+      </div>
+    </div>
+  </div>
+
+  <div id="status" class="status-text">請點擊上方按鈕載入音檔</div>
+</div>
+
+<script>
+  let audioFiles = []; // 儲存 { id, name, buffer, silenceAfter, historyStack }
+  let activeFileId = null;
+
+  let wavesurfer = null;
+  let wsRegions = null;
+  let activeRegion = null;
+
+  let combinedAudioBlob = null; // 暫存合成後的 Blob
+
+  const fileInput = document.getElementById('file-input');
+  const fileListEl = document.getElementById('file-list');
+  const fileCountEl = document.getElementById('file-count');
+  const statusEl = document.getElementById('status');
+
+  const btnPlay = document.getElementById('btn-play');
+  const btnCut = document.getElementById('btn-cut');
+  const btnKeep = document.getElementById('btn-keep');
+  const btnUndo = document.getElementById('btn-undo');
+  const btnGenerateRepeat = document.getElementById('btn-generate-repeat');
+
+  const previewSection = document.getElementById('preview-section');
+  const btnPreviewPlay = document.getElementById('btn-preview-play');
+  const btnDownload = document.getElementById('btn-download');
+  const previewAudioPlayer = document.getElementById('preview-audio-player');
+
+  const centerDurationEl = document.getElementById('center-duration');
+  const startTimeEl = document.getElementById('start-time');
+  const endTimeEl = document.getElementById('end-time');
+
+  // 初始化 SortableJS (拖曳排序)
+  new Sortable(fileListEl, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function () {
+      const newOrder = [];
+      fileListEl.querySelectorAll('li').forEach(li => {
+        const id = li.dataset.id;
+        const item = audioFiles.find(f => f.id === id);
+        if (item) newOrder.push(item);
+      });
+      audioFiles = newOrder;
+    }
+  });
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  // 上傳檔案事件
+  fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    setStatus('正在解析上傳的音檔...');
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    for (const file of files) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const fileObj = {
+          id: 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          name: file.name,
+          buffer: decodedBuffer,
+          silenceAfter: 1.5,
+          historyStack: []
+        };
+        audioFiles.push(fileObj);
+      } catch (err) {
+        console.error('音檔解析失敗:', file.name, err);
+      }
+    }
+
+    renderFileList();
+    if (audioFiles.length > 0 && !activeFileId) {
+      selectFile(audioFiles[0].id);
+    } else {
+      updateGenerateButton();
+    }
+    setStatus('音檔載入完成！');
+    fileInput.value = '';
+  });
+
+  // 渲染音檔清單 UI
+  function renderFileList() {
+    fileListEl.innerHTML = '';
+    fileCountEl.textContent = `共 ${audioFiles.length} 個音檔`;
+
+    audioFiles.forEach((file, index) => {
+      const li = document.createElement('li');
+      li.className = `file-item ${file.id === activeFileId ? 'active' : ''}`;
+      li.dataset.id = file.id;
+
+      li.innerHTML = `
+        <div class="file-main-info">
+          <span class="drag-handle">☰</span>
+          <span>${index + 1}. ${file.name}</span>
+        </div>
+        <div class="silence-control" title="播完此音檔後要停頓的秒數">
+          後停: <input type="number" min="0" max="60" step="0.5" value="${file.silenceAfter}" class="input-silence"> 秒
+        </div>
+        <button class="btn-remove-file" title="刪除檔案">✕</button>
+      `;
+
+      li.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-remove-file') || 
+            e.target.classList.contains('drag-handle') ||
+            e.target.classList.contains('input-silence')) return;
+        selectFile(file.id);
+      });
+
+      const silenceInput = li.querySelector('.input-silence');
+      silenceInput.addEventListener('change', (e) => {
+        file.silenceAfter = parseFloat(e.target.value) || 0;
+      });
+
+      li.querySelector('.btn-remove-file').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(file.id);
+      });
+
+      fileListEl.appendChild(li);
+    });
+
+    updateGenerateButton();
+  }
+
+  // 選取當前編輯的音檔
+  function selectFile(id) {
+    activeFileId = id;
+    renderFileList();
+
+    const fileObj = audioFiles.find(f => f.id === id);
+    if (fileObj) {
+      loadWaveSurfer(fileObj.buffer);
+    }
+  }
+
+  // 移除音檔
+  function removeFile(id) {
+    audioFiles = audioFiles.filter(f => f.id !== id);
+    if (activeFileId === id) {
+      activeFileId = audioFiles.length ? audioFiles[0].id : null;
+    }
+    renderFileList();
+
+    if (activeFileId) {
+      selectFile(activeFileId);
+    } else {
+      if (wavesurfer) wavesurfer.destroy();
+      enableEditorButtons(false);
+      setStatus('請載入音檔以進行編輯');
+    }
+  }
+
+  // 載入與初始化 WaveSurfer
+  function loadWaveSurfer(buffer) {
+    if (wavesurfer) wavesurfer.destroy();
+
+    wavesurfer = WaveSurfer.create({
+      container: '#waveform',
+      waveColor: '#cbd5e1',
+      progressColor: '#2563eb',
+      cursorColor: '#ef4444',
+      cursorWidth: 2,
+      height: 128,
+      responsive: true,
+      normalize: true
+    });
+
+    wsRegions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
+
+    wsRegions.on('region-updated', (region) => { 
+      activeRegion = region; 
+      updateRegionTimeLabels(region);
+    });
+
+    wsRegions.on('region-created', (region) => {
+      wsRegions.getRegions().forEach(r => { if (r.id !== region.id) r.remove(); });
+      activeRegion = region;
+      attachTimeLabels(region);
+      updateRegionTimeLabels(region);
+    });
+
+    // 監聽播放事件以變更按鈕圖示
+    wavesurfer.on('play', () => {
+      btnPlay.textContent = "⏸ 暫停當前選區";
+    });
+
+    wavesurfer.on('pause', () => {
+      btnPlay.textContent = "▶ 試聽當前選區";
+    });
+
+    wavesurfer.on('finish', () => {
+      btnPlay.textContent = "▶ 試聽當前選區";
+    });
+
+    wavesurfer.on('ready', () => {
+      const activeObj = audioFiles.find(f => f.id === activeFileId);
+      enableEditorButtons(true);
+      btnUndo.disabled = !(activeObj && activeObj.historyStack.length > 0);
+
+      const duration = wavesurfer.getDuration();
+      const formattedDuration = formatExactTime(duration);
+      
+      centerDurationEl.textContent = formattedDuration;
+      endTimeEl.textContent = formattedDuration;
+      startTimeEl.textContent = "00:00:00.0";
+
+      wsRegions.clearRegions();
+      activeRegion = wsRegions.addRegion({
+        start: duration * 0.2,
+        end: duration * 0.6,
+        color: 'rgba(255, 107, 107, 0.15)', 
+        drag: true,
+        resize: true
+      });
+    });
+
+    const wavBlob = audioBufferToWav(buffer);
+    wavesurfer.load(URL.createObjectURL(wavBlob));
+  }
+
+  function attachTimeLabels(region) {
+    if (!region || !region.element) return;
+    const leftHandle = region.element.querySelector('[data-resize="left"]');
+    const rightHandle = region.element.querySelector('[data-resize="right"]');
+
+    if (leftHandle && !leftHandle.querySelector('.handle-time-tag')) {
+      const leftTag = document.createElement('div');
+      leftTag.className = 'handle-time-tag handle-left-tag';
+      leftHandle.appendChild(leftTag);
+    }
+    if (rightHandle && !rightHandle.querySelector('.handle-time-tag')) {
+      const rightTag = document.createElement('div');
+      rightTag.className = 'handle-time-tag handle-right-tag';
+      rightHandle.appendChild(rightTag);
+    }
+  }
+
+  function updateRegionTimeLabels(region) {
+    if (!region || !region.element) return;
+    const leftTag = region.element.querySelector('.handle-left-tag');
+    const rightTag = region.element.querySelector('.handle-right-tag');
+    if (leftTag) leftTag.textContent = formatExactTime(region.start);
+    if (rightTag) rightTag.textContent = formatExactTime(region.end);
+  }
+
+  function enableEditorButtons(enabled) {
+    btnPlay.disabled = !enabled;
+    btnCut.disabled = !enabled;
+    btnKeep.disabled = !enabled;
+    if (!enabled) btnUndo.disabled = true;
+  }
+
+  function updateGenerateButton() {
+    btnGenerateRepeat.disabled = audioFiles.length === 0;
+  }
+
+  function updateActiveBuffer(newBuffer) {
+    const activeObj = audioFiles.find(f => f.id === activeFileId);
+    if (!activeObj) return;
+
+    activeObj.historyStack.push(activeObj.buffer);
+    activeObj.buffer = newBuffer;
+
+    loadWaveSurfer(newBuffer);
+  }
+
+  // 試聽與暫停單檔剪輯
+  btnPlay.addEventListener('click', () => {
+    if (wavesurfer.isPlaying()) {
+      wavesurfer.pause();
+    } else {
+      if (activeRegion) {
+        wavesurfer.play(activeRegion.start, activeRegion.end);
+      } else {
+        wavesurfer.play();
+      }
+    }
+  });
+
+  // 剪除選區
+  btnCut.addEventListener('click', () => {
+    const activeObj = audioFiles.find(f => f.id === activeFileId);
+    if (!activeRegion || !activeObj) return;
+
+    const buffer = activeObj.buffer;
+    const start = activeRegion.start;
+    const end = activeRegion.end;
+    const sampleRate = buffer.sampleRate;
+    const numberOfChannels = buffer.numberOfChannels;
+
+    const startSample = Math.floor(start * sampleRate);
+    const endSample = Math.floor(end * sampleRate);
+    const cutLength = endSample - startSample;
+
+    if (cutLength <= 0) return;
+    const newLength = buffer.length - cutLength;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const newBuffer = audioCtx.createBuffer(numberOfChannels, newLength, sampleRate);
+
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const oldData = buffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      newData.set(oldData.subarray(0, startSample), 0);
+      newData.set(oldData.subarray(endSample), startSample);
+    }
+
+    setStatus(`已剪除「${activeObj.name}」選區！`);
+    updateActiveBuffer(newBuffer);
+  });
+
+  // 僅留選區
+  btnKeep.addEventListener('click', () => {
+    const activeObj = audioFiles.find(f => f.id === activeFileId);
+    if (!activeRegion || !activeObj) return;
+
+    const buffer = activeObj.buffer;
+    const start = activeRegion.start;
+    const end = activeRegion.end;
+    const sampleRate = buffer.sampleRate;
+    const numberOfChannels = buffer.numberOfChannels;
+
+    const startSample = Math.floor(start * sampleRate);
+    const endSample = Math.floor(end * sampleRate);
+    const newLength = endSample - startSample;
+
+    if (newLength <= 0) return;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const newBuffer = audioCtx.createBuffer(numberOfChannels, newLength, sampleRate);
+
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const oldData = buffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      newData.set(oldData.subarray(startSample, endSample), 0);
+    }
+
+    setStatus(`已保留「${activeObj.name}」選區！`);
+    updateActiveBuffer(newBuffer);
+  });
+
+  // 復原按鈕
+  btnUndo.addEventListener('click', () => {
+    const activeObj = audioFiles.find(f => f.id === activeFileId);
+    if (!activeObj || activeObj.historyStack.length === 0) return;
+
+    activeObj.buffer = activeObj.historyStack.pop();
+    loadWaveSurfer(activeObj.buffer);
+    setStatus(`「${activeObj.name}」已復原至上一步`);
+  });
+
+  // 執行批量合成
+  btnGenerateRepeat.addEventListener('click', () => {
+    if (audioFiles.length === 0) return;
+
+    const count = parseInt(document.getElementById('repeat-count').value) || 10;
+    const silenceLoopSec = parseFloat(document.getElementById('silence-loop').value) || 0;
+
+    setStatus(`正在合成 ${audioFiles.length} 個音檔...`);
+
+    setTimeout(() => {
+      const sampleRate = audioFiles[0].buffer.sampleRate;
+      const numChannels = audioFiles[0].buffer.numberOfChannels;
+
+      const samplesLoopSilence = Math.floor(silenceLoopSec * sampleRate);
+
+      let unitSamples = 0;
+      audioFiles.forEach((f, idx) => {
+        unitSamples += f.buffer.length;
+        if (idx < audioFiles.length - 1) {
+          unitSamples += Math.floor(f.silenceAfter * sampleRate);
+        }
+      });
+
+      const totalSamples = (unitSamples * count) + (samplesLoopSilence * (count - 1));
+
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const outputBuffer = audioCtx.createBuffer(numChannels, totalSamples, sampleRate);
+
+      for (let ch = 0; ch < numChannels; ch++) {
+        const targetData = outputBuffer.getChannelData(ch);
+        let offset = 0;
+
+        for (let loop = 0; loop < count; loop++) {
+          audioFiles.forEach((fileObj, fIdx) => {
+            const fileData = fileObj.buffer.getChannelData(Math.min(ch, fileObj.buffer.numberOfChannels - 1));
+            targetData.set(fileData, offset);
+            offset += fileObj.buffer.length;
+
+            if (fIdx < audioFiles.length - 1) {
+              offset += Math.floor(fileObj.silenceAfter * sampleRate);
+            }
+          });
+
+          if (loop < count - 1) {
+            offset += samplesLoopSilence;
+          }
+        }
+      }
+
+      combinedAudioBlob = audioBufferToWav(outputBuffer);
+      const audioUrl = URL.createObjectURL(combinedAudioBlob);
+      
+      previewAudioPlayer.src = audioUrl;
+      previewSection.style.display = 'flex';
+      btnPreviewPlay.textContent = "▶ 試聽合成結果";
+
+      setStatus('合成完畢！您可以在下方點擊試聽或下載。');
+    }, 100);
+  });
+
+  // 試聽合成音檔
+  btnPreviewPlay.addEventListener('click', () => {
+    if (previewAudioPlayer.paused) {
+      previewAudioPlayer.play();
+      btnPreviewPlay.textContent = "⏸ 暫停試聽";
+    } else {
+      previewAudioPlayer.pause();
+      btnPreviewPlay.textContent = "▶ 試聽合成結果";
+    }
+  });
+
+  previewAudioPlayer.addEventListener('ended', () => {
+    btnPreviewPlay.textContent = "▶ 試聽合成結果";
+  });
+
+  // 下載合成音檔
+  btnDownload.addEventListener('click', () => {
+    if (!combinedAudioBlob) return;
+    const url = URL.createObjectURL(combinedAudioBlob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `combined_${audioFiles.length}files_${Date.now()}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 100);
+  });
+
+  function formatExactTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10);
+
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms}`;
+  }
+
+  function audioBufferToWav(buffer) {
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const out = new DataView(new ArrayBuffer(length));
+    let channels = [], sampleRate = buffer.sampleRate, offset = 0, pos = 0;
+
+    function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+    function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+    setUint32(sampleRate); setUint32(sampleRate * 2 * numOfChan);
+    setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
+    setUint32(length - pos - 4);
+
+    for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+    while (offset < buffer.length) {
+      for (let i = 0; i < numOfChan; i++) {
+        let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+        out.setInt16(pos, sample, true); pos += 2;
+      }
+      offset++;
+    }
+    return new Blob([out], { type: 'audio/wav' });
+  }
+</script>
+
+</body>
+</html>
