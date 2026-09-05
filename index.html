@@ -1,11 +1,13 @@
-<!DOCTYPE html>
+code = '''<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>多音檔剪輯、獨立間隔與合成試聽工具</title>
+  <!-- WaveSurfer v7 核心與插件 -->
   <script src="https://unpkg.com/wavesurfer.js@7"></script>
   <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+  <!-- SortableJS (用於清單拖曳排序) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <style>
     * {
@@ -273,6 +275,7 @@
     .btn-cut { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
     .btn-keep { border-color: #7dd3fc; color: #0369a1; background: #f0f9ff; }
     .btn-undo { border-color: #fde047; color: #a16207; background: #fefce8; }
+    .btn-download-single { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
 
     /* 重複拼接與預覽面板 */
     .repeat-panel {
@@ -395,11 +398,13 @@
 <div class="container">
   <h1>多音檔剪輯與合成試聽工具</h1>
 
+  <!-- 上傳區域 -->
   <div class="upload-section">
     <label for="file-input" class="upload-btn">📁 新增 / 上傳多個音檔</label>
     <input type="file" id="file-input" accept="audio/*" multiple>
   </div>
 
+  <!-- 音檔清單 -->
   <div class="file-list-container">
     <div class="list-title">
       <span>音檔播放順序與個人停頓秒數（點擊可預覽剪輯，拖曳 ☰ 排序）：</span>
@@ -408,6 +413,7 @@
     <ul id="file-list" class="file-list"></ul>
   </div>
 
+  <!-- 波形編輯區 -->
   <div class="waveform-card">
     <div class="waveform-wrapper">
       <div id="waveform" class="waveform-container">
@@ -420,15 +426,18 @@
     </div>
   </div>
 
+  <!-- 工具按鈕 -->
   <div class="controls">
     <div class="btn-group-left">
       <button id="btn-play" class="btn btn-play" disabled>▶ 試聽當前選區</button>
       <button id="btn-cut" class="btn btn-cut" disabled>✂ 剪除選區</button>
       <button id="btn-keep" class="btn btn-keep" disabled>🔍 僅留選區</button>
       <button id="btn-undo" class="btn btn-undo" disabled>↩ 復原上步</button>
+      <button id="btn-download-single" class="btn btn-download-single" disabled>💾 下載此單檔</button>
     </div>
   </div>
 
+  <!-- 重複拼接與預覽面板 -->
   <div class="repeat-panel">
     <div class="panel-title">🔁 拼接與合成設定</div>
     <div class="setting-grid">
@@ -445,6 +454,7 @@
       <button id="btn-generate-repeat" class="btn btn-generate" disabled>⚙ 開始合成音檔</button>
     </div>
 
+    <!-- 合成後試聽與下載區 -->
     <div id="preview-section" class="preview-section">
       <div class="preview-title">✅ 音檔合成完成！請先試聽確認：</div>
       <div class="preview-controls">
@@ -477,6 +487,7 @@
   const btnCut = document.getElementById('btn-cut');
   const btnKeep = document.getElementById('btn-keep');
   const btnUndo = document.getElementById('btn-undo');
+  const btnDownloadSingle = document.getElementById('btn-download-single');
   const btnGenerateRepeat = document.getElementById('btn-generate-repeat');
 
   const previewSection = document.getElementById('preview-section');
@@ -711,6 +722,7 @@
     btnPlay.disabled = !enabled;
     btnCut.disabled = !enabled;
     btnKeep.disabled = !enabled;
+    btnDownloadSingle.disabled = !enabled;
     if (!enabled) btnUndo.disabled = true;
   }
 
@@ -800,6 +812,29 @@
 
     setStatus(`已保留「${activeObj.name}」選區！`);
     updateActiveBuffer(newBuffer);
+  });
+
+  // 下載當前單檔
+  btnDownloadSingle.addEventListener('click', () => {
+    const activeObj = audioFiles.find(f => f.id === activeFileId);
+    if (!activeObj || !activeObj.buffer) return;
+
+    const wavBlob = audioBufferToWav(activeObj.buffer);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    
+    // 檔名加上 edited 標示
+    const originalName = activeObj.name.substring(0, activeObj.name.lastIndexOf('.')) || activeObj.name;
+    a.download = `${originalName}_edited.wav`;
+    
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 100);
   });
 
   // 復原按鈕
@@ -942,3 +977,8 @@
 
 </body>
 </html>
+'''
+
+with open('index.html', 'w', encoding='utf-8') as f:
+    f.write(code)
+print("Updated index.html written successfully.")
